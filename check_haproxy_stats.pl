@@ -172,6 +172,8 @@ my @proxies = split ',', $proxy if $proxy;
 my $exitcode = 0;
 my $msg;
 my $checked = 0;
+my $perfdata;
+
 while (<$haproxy>) {
     chomp;
     next if /^[[:space:]]*$/;
@@ -181,6 +183,8 @@ while (<$haproxy>) {
     # Is session limit enforced? 
     our $slim;
     if ($data[$slim]) {
+        $perfdata .= sprintf "%s-%s=%u;%u;%u;0;%u;", $data[$pxname], $data[$svname], $data[$scur], $swarn * $data[$slim] / 100, $scrit * $data[$slim] / 100, $data[$slim];
+
         # Check current session # against limit
         our $scur;
         my $sratio = $data[$scur]/$data[$slim];
@@ -220,6 +224,6 @@ while (<$haproxy>) {
 unless ($msg) {
     $msg = @proxies ? sprintf("checked proxies: %s", join ', ', sort @proxies) : "checked $checked proxies.";
 }
-say "Check haproxy $status_names[$exitcode] - $msg";
+say "Check haproxy $status_names[$exitcode] - $msg|$perfdata";
 exit $exitcode;
 
