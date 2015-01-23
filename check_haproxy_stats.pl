@@ -172,7 +172,7 @@ my @proxies = split ',', $proxy if $proxy;
 my $exitcode = 0;
 my $msg;
 my $checked = 0;
-my $perfdata;
+my $perfdata = "";
 
 while (<$haproxy>) {
     chomp;
