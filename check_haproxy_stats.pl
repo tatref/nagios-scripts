@@ -13,7 +13,7 @@
 # warranty of merchantability or fitness for a particular purpose.
 #
 
-our $VERSION = "1.0.1";
+our $VERSION = "1.0.4";
 
 open(STDERR, ">&STDOUT");
 
