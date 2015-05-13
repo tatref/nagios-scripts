@@ -22,6 +22,7 @@ open(STDERR, ">&STDOUT");
 #   1.0.1   - fixed empty message if all proxies are OK
 #   1.0.2   - add perfdata
 #   1.0.3   - redirect stderr to stdout
+#   1.0.4   - fix undef vars
 
 use strict;
 use warnings;
@@ -170,6 +171,8 @@ my @labels = split /,/, $labels;
 our $pxname;
 our $svname;
 our $status;
+our $slim;
+our $scur;
 
 my @proxies = split ',', $proxy if $proxy;
 my $exitcode = 0;
@@ -184,12 +187,10 @@ while (<$haproxy>) {
     if (@proxies) { next unless grep {$data[$pxname] eq $_} @proxies; };
 
     # Is session limit enforced? 
-    our $slim;
     if ($data[$slim]) {
         $perfdata .= sprintf "%s-%s=%u;%u;%u;0;%u;", $data[$pxname], $data[$svname], $data[$scur], $swarn * $data[$slim] / 100, $scrit * $data[$slim] / 100, $data[$slim];
 
         # Check current session # against limit
-        our $scur;
         my $sratio = $data[$scur]/$data[$slim];
         if ($sratio >= $scrit || $sratio >= $swarn) {
             $exitcode = $sratio >= $scrit ? 2 : 
