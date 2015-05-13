@@ -15,10 +15,13 @@
 
 our $VERSION = "1.0.1";
 
+open(STDERR, ">&STDOUT");
+
 # CHANGELOG:
 #   1.0.0   - first release
 #   1.0.1   - fixed empty message if all proxies are OK
-#
+#   1.0.2   - add perfdata
+#   1.0.3   - redirect stderr to stdout
 
 use strict;
 use warnings;
