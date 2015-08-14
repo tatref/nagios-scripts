@@ -56,6 +56,9 @@ DESCRIPTION
     -h, --help
         Print this message.
 
+    -m, --ignore-maint
+        Assume servers in MAINT state to be ok.
+
     -p, --proxy
         Check only named proxies, not every one. Use comma to separate proxies
         in list.
@@ -123,6 +126,7 @@ my $swarn = 80.0;
 my $scrit = 90.0;
 my $sock  = "/var/run/haproxy.sock";
 my $dump;
+my $ignore_maint;
 my $proxy;
 my $no_proxy;
 my $help;
@@ -133,6 +137,7 @@ GetOptions (
     "c|critical=i"    => \$scrit,
     "d|dump"          => \$dump,
     "h|help"          => \$help,
+    "m|ignore-maint"  => \$ignore_maint,
     "p|proxy=s"       => \$proxy,
     "P|no-proxy=s"    => \$no_proxy,
     "s|sock|socket=s" => \$sock, 
@@ -225,6 +230,7 @@ while (<$haproxy>) {
     # Check of servers
     } else {
         if ($data[$status] ne 'UP') {
+            next if ($ignore_maint && $data[$status] eq 'MAINT');
             next if $data[$status] eq 'no check';   # Ignore server if no check is configured to be run
             $exitcode = 2;
             our $check_status;
