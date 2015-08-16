@@ -56,9 +56,15 @@ DESCRIPTION
     -h, --help
         Print this message.
 
+    -m, --ignore-maint
+        Assume servers in MAINT state to be ok.
+
     -p, --proxy
         Check only named proxies, not every one. Use comma to separate proxies
         in list.
+
+    -P, --no-proxy
+        Do not check named proxies. Use comma to separate proxies in list.
 
     -s, --sock, --socket
         Use named UNIX socket instead of default (/var/run/haproxy.sock)
@@ -120,7 +126,9 @@ my $swarn = 80.0;
 my $scrit = 90.0;
 my $sock  = "/var/run/haproxy.sock";
 my $dump;
+my $ignore_maint;
 my $proxy;
+my $no_proxy;
 my $help;
 
 # Read command line
@@ -129,7 +137,9 @@ GetOptions (
     "c|critical=i"    => \$scrit,
     "d|dump"          => \$dump,
     "h|help"          => \$help,
+    "m|ignore-maint"  => \$ignore_maint,
     "p|proxy=s"       => \$proxy,
+    "P|no-proxy=s"    => \$no_proxy,
     "s|sock|socket=s" => \$sock, 
     "w|warning=i"     => \$swarn,
 );
@@ -175,16 +185,22 @@ our $slim;
 our $scur;
 
 my @proxies = split ',', $proxy if $proxy;
+my @no_proxies = split ',', $no_proxy if $no_proxy;
 my $exitcode = 0;
 my $msg;
 my $checked = 0;
 my $perfdata = "";
+
+# Remove excluded proxies from the list if both -p and -P options are
+# specified.
+@proxies = grep{ not $_ ~~ @no_proxies } @proxies;
 
 while (<$haproxy>) {
     chomp;
     next if /^[[:space:]]*$/;
     my @data = split /,/, $_;
     if (@proxies) { next unless grep {$data[$pxname] eq $_} @proxies; };
+    if (@no_proxies) { next if grep {$data[$pxname] eq $_} @no_proxies; };
 
     # Is session limit enforced? 
     if ($data[$slim]) {
@@ -214,6 +230,7 @@ while (<$haproxy>) {
     # Check of servers
     } else {
         if ($data[$status] ne 'UP') {
+            next if ($ignore_maint && $data[$status] eq 'MAINT');
             next if $data[$status] eq 'no check';   # Ignore server if no check is configured to be run
             $exitcode = 2;
             our $check_status;
