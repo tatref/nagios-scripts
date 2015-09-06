@@ -232,6 +232,7 @@ while (<$haproxy>) {
         if ($data[$status] ne 'UP') {
             next if ($ignore_maint && $data[$status] eq 'MAINT');
             next if $data[$status] eq 'no check';   # Ignore server if no check is configured to be run
+            next if $data[$svname] eq 'sock-1';
             $exitcode = 2;
             our $check_status;
             $msg .= sprintf "server: %s:%s is %s", $data[$pxname], $data[$svname], $data[$status];
