@@ -208,10 +208,10 @@ while (<$haproxy>) {
 
         # Check current session # against limit
         my $sratio = $data[$scur]/$data[$slim];
-        if ($sratio >= $scrit || $sratio >= $swarn) {
-            $exitcode = $sratio >= $scrit ? 2 : 
+        if ($sratio >= $scrit / 100 || $sratio >= $swarn / 100) {
+            $exitcode = $sratio >= $scrit / 100 ? 2 : 
                 $exitcode < 2 ? 1 : $exitcode;
-            $msg .= sprintf "%s:%s sessions: %.2f%%; ", $data[$pxname], $data[$svname], $sratio;
+            $msg .= sprintf "%s:%s sessions: %.2f%%; ", $data[$pxname], $data[$svname], $sratio * 100;
         }
     }
 
