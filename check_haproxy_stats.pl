@@ -15,7 +15,7 @@
 # warranty of merchantability or fitness for a particular purpose.
 #
 
-our $VERSION = "1.1.0";
+our $VERSION = "1.1.1";
 
 open(STDERR, ">&STDOUT");
 
@@ -27,6 +27,7 @@ open(STDERR, ">&STDOUT");
 #   1.0.4   - fix undef vars
 #   1.0.5   - fix thresholds
 #   1.1.0   - support for HTTP interface
+#   1.1.1   - drop perl 5.10 requirement
 
 use strict;
 use warnings;
