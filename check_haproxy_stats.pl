@@ -77,10 +77,10 @@ DESCRIPTION
     -U, --url
         Use HTTP URL instead of socket
 
-    -u, --username
+    -u, --user, --username
         Username for the HTTP URL
 
-    -x, --password
+    -x, --pass, --password
         Password for the HTTP URL
 
     -w, --warning
