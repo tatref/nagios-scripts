@@ -30,7 +30,6 @@ open(STDERR, ">&STDOUT");
 
 use strict;
 use warnings;
-use 5.010.001;
 use File::Basename qw/basename/;
 use IO::Socket::UNIX;
 use Getopt::Long;
@@ -243,7 +242,9 @@ my $perfdata = "";
 
 # Remove excluded proxies from the list if both -p and -P options are
 # specified.
-@proxies = grep{ not $_ ~~ @no_proxies } @proxies;
+my %hash;
+@hash{@no_proxies} = undef;
+@proxies = grep{ not exists $hash{$_} } @proxies;
 
 foreach (@hastats) {
     chomp;
@@ -297,6 +298,6 @@ foreach (@hastats) {
 unless ($msg) {
     $msg = @proxies ? sprintf("checked proxies: %s", join ', ', sort @proxies) : "checked $checked proxies.";
 }
-say "Check haproxy $status_names[$exitcode] - $msg|$perfdata";
+print "Check haproxy $status_names[$exitcode] - $msg|$perfdata\n";
 exit $exitcode;
 
