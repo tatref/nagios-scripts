@@ -3,6 +3,8 @@
 
 #
 # Copyright (C) 2012, Giacomo Montagner <giacomo@entirelyunlike.net>
+#               2015, Yann Fertat, Romain Dessort, Jeff Palmer,
+#                     Christophe Drevet-Droguet <dr4ke@dr4ke.net>
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the same terms as Perl 5.10.1.
@@ -13,7 +15,7 @@
 # warranty of merchantability or fitness for a particular purpose.
 #
 
-our $VERSION = "1.0.5";
+our $VERSION = "1.1.0";
 
 open(STDERR, ">&STDOUT");
 
