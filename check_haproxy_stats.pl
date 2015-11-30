@@ -1,13 +1,13 @@
-#!/usr/bin/env perl 
+#!/usr/bin/env perl
 # vim: se et ts=4:
 
 #
 # Copyright (C) 2012, Giacomo Montagner <giacomo@entirelyunlike.net>
-# 
-# This program is free software; you can redistribute it and/or modify it 
-# under the same terms as Perl 5.10.1. 
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the same terms as Perl 5.10.1.
 # For more details, see http://dev.perl.org/licenses/artistic.html
-# 
+#
 # This program is distributed in the hope that it will be
 # useful, but without any warranty; without even the implied
 # warranty of merchantability or fitness for a particular purpose.
@@ -85,17 +85,17 @@ DESCRIPTION
         Set warning threshold for sessions number to the specified percentage (see -c)
 
 CHECKS AND OUTPUT
-    $me checks every proxy (or the named ones, if -p was given) 
-    for status. It returns an error if any of the checked FRONTENDs is not OPEN, 
+    $me checks every proxy (or the named ones, if -p was given)
+    for status. It returns an error if any of the checked FRONTENDs is not OPEN,
     any of the checked BACKENDs is not UP, or any of the checkes servers is not UP;
-    $me reports any problem it found. 
+    $me reports any problem it found.
 
 EXAMPLES
     $me -s /var/spool/haproxy/sock
         Use /var/spool/haproxy/sock to communicate with haproxy.
 
     $me -p proxy1,proxy2 -w 60 -c 80
-        Check only proxies named "proxy1" and "proxy2", and set sessions number 
+        Check only proxies named "proxy1" and "proxy2", and set sessions number
         thresholds to 60% and 80%.
 
 AUTHOR
@@ -105,12 +105,12 @@ REPORTING BUGS
     Please report any bug to bugs\@entirelyunlike.net
 
 COPYRIGHT
-    Copyright (C) 2012 Giacomo Montagner <giacomo\@entirelyunlike.net>. 
+    Copyright (C) 2012 Giacomo Montagner <giacomo\@entirelyunlike.net>.
     $me is distributed under GPL and the Artistic License 2.0
 
 SEE ALSO
     Check out online haproxy documentation at <http://haproxy.1wt.eu/>
-    
+
 EOU
 }
 
@@ -203,9 +203,9 @@ my @hastats = ( split /\n/, $haproxy );
 my $labels = $hastats[0];
 die "Unable to retrieve haproxy stats" unless $labels;
 chomp($labels);
-$labels =~ s/^# // or die "Data format not supported."; 
+$labels =~ s/^# // or die "Data format not supported.";
 my @labels = split /,/, $labels;
-{ 
+{
     no strict "refs";
     my $idx = 0;
     map { $$_ = $idx++ } @labels;
@@ -237,14 +237,14 @@ foreach (@hastats) {
     if (@proxies) { next unless grep {$data[$pxname] eq $_} @proxies; };
     if (@no_proxies) { next if grep {$data[$pxname] eq $_} @no_proxies; };
 
-    # Is session limit enforced? 
+    # Is session limit enforced?
     if ($data[$slim]) {
         $perfdata .= sprintf "%s-%s=%u;%u;%u;0;%u;", $data[$pxname], $data[$svname], $data[$scur], $swarn * $data[$slim] / 100, $scrit * $data[$slim] / 100, $data[$slim];
 
         # Check current session # against limit
         my $sratio = $data[$scur]/$data[$slim];
         if ($sratio >= $scrit / 100 || $sratio >= $swarn / 100) {
-            $exitcode = $sratio >= $scrit / 100 ? 2 : 
+            $exitcode = $sratio >= $scrit / 100 ? 2 :
                 $exitcode < 2 ? 1 : $exitcode;
             $msg .= sprintf "%s:%s sessions: %.2f%%; ", $data[$pxname], $data[$svname], $sratio * 100;
         }
