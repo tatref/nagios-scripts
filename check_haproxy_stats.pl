@@ -24,6 +24,7 @@ open(STDERR, ">&STDOUT");
 #   1.0.3   - redirect stderr to stdout
 #   1.0.4   - fix undef vars
 #   1.0.5   - fix thresholds
+#   1.1.0   - support for HTTP interface
 
 use strict;
 use warnings;
@@ -31,6 +32,7 @@ use 5.010.001;
 use File::Basename qw/basename/;
 use IO::Socket::UNIX;
 use Getopt::Long;
+use LWP::Simple;
 
 sub usage {
     my $me = basename $0;
@@ -69,6 +71,15 @@ DESCRIPTION
 
     -s, --sock, --socket
         Use named UNIX socket instead of default (/var/run/haproxy.sock)
+
+    -U, --url
+        Use HTTP URL instead of socket
+
+    -u, --username
+        Username for the HTTP URL
+
+    -x, --password
+        Password for the HTTP URL
 
     -w, --warning
         Set warning threshold for sessions number to the specified percentage (see -c)
@@ -126,6 +137,9 @@ my @status_names = (qw/OK WARNING CRITICAL UNKNOWN/);
 my $swarn = 80.0;
 my $scrit = 90.0;
 my $sock  = "/var/run/haproxy.sock";
+my $url;
+my $user = '';
+my $pass = '';
 my $dump;
 my $ignore_maint;
 my $proxy;
@@ -135,14 +149,17 @@ my $help;
 # Read command line
 Getopt::Long::Configure ("bundling");
 GetOptions (
-    "c|critical=i"    => \$scrit,
-    "d|dump"          => \$dump,
-    "h|help"          => \$help,
-    "m|ignore-maint"  => \$ignore_maint,
-    "p|proxy=s"       => \$proxy,
-    "P|no-proxy=s"    => \$no_proxy,
-    "s|sock|socket=s" => \$sock, 
-    "w|warning=i"     => \$swarn,
+    "c|critical=i"      => \$scrit,
+    "d|dump"            => \$dump,
+    "h|help"            => \$help,
+    "m|ignore-maint"    => \$ignore_maint,
+    "p|proxy=s"         => \$proxy,
+    "P|no-proxy=s"      => \$no_proxy,
+    "s|sock|socket=s"   => \$sock,
+    "U|url=s"           => \$url,
+    "u|user|username=s" => \$user,
+    "x|pass|password=s" => \$pass,
+    "w|warning=i"       => \$swarn,
 );
 
 # Want help?
@@ -151,24 +168,40 @@ if ($help) {
     exit 3;
 }
 
-# Connect to haproxy socket and get stats
-my $haproxy = new IO::Socket::UNIX (
-    Peer => $sock,
-    Type => SOCK_STREAM,
-);
-die "Unable to connect to haproxy socket: $@" unless $haproxy;
-print $haproxy "show stat\n" or die "Print to socket failed: $!";
+my $haproxy;
+if ($url) {
+    my $geturl = $url;
+    if ($user ne '') {
+        $url =~ /^([^:]*:\/\/)(.*)/;
+        $geturl = $1.$user.':'.$pass.'@'.$2;
+    }
+    $geturl .= ';csv';
+    $haproxy = get($geturl);
+} else {
+    # Connect to haproxy socket and get stats
+    my $haproxyio = new IO::Socket::UNIX (
+        Peer => $sock,
+        Type => SOCK_STREAM,
+    );
+    die "Unable to connect to haproxy socket: $sock\n$@" unless $haproxyio;
+    print $haproxyio "show stat\n" or die "Print to socket failed: $!";
+    $haproxy = '';
+    while (<$haproxyio>) {
+        $haproxy .= $_;
+    }
+    close($haproxyio);
+}
 
 # Dump stats and exit if requested
 if ($dump) {
-    while (<$haproxy>) {
-        print;
-    }
+    print($haproxy);
     exit 0;
 }
 
 # Get labels from first output line and map them to their position in the line
-my $labels = <$haproxy>;
+my @hastats = ( split /\n/, $haproxy );
+my $labels = $hastats[0];
+die "Unable to retrieve haproxy stats" unless $labels;
 chomp($labels);
 $labels =~ s/^# // or die "Data format not supported."; 
 my @labels = split /,/, $labels;
@@ -196,8 +229,9 @@ my $perfdata = "";
 # specified.
 @proxies = grep{ not $_ ~~ @no_proxies } @proxies;
 
-while (<$haproxy>) {
+foreach (@hastats) {
     chomp;
+    next if /^#/;
     next if /^[[:space:]]*$/;
     my @data = split /,/, $_;
     if (@proxies) { next unless grep {$data[$pxname] eq $_} @proxies; };
