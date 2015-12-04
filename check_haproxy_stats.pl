@@ -34,7 +34,11 @@ use 5.010.001;
 use File::Basename qw/basename/;
 use IO::Socket::UNIX;
 use Getopt::Long;
-use LWP::Simple;
+my $lwp = eval {
+    require LWP::Simple;
+    LWP::Simple->import;
+    1;
+};
 
 sub usage {
     my $me = basename $0;
@@ -75,7 +79,8 @@ DESCRIPTION
         Use named UNIX socket instead of default (/var/run/haproxy.sock)
 
     -U, --url
-        Use HTTP URL instead of socket
+        Use HTTP URL instead of socket. The LWP::Simple perl module is used if
+        available. Otherwise, it falls back to using the external command `curl`.
 
     -u, --user, --username
         Username for the HTTP URL
@@ -171,7 +176,7 @@ if ($help) {
 }
 
 my $haproxy;
-if ($url) {
+if ($url and $lwp) {
     my $geturl = $url;
     if ($user ne '') {
         $url =~ /^([^:]*:\/\/)(.*)/;
@@ -179,6 +184,15 @@ if ($url) {
     }
     $geturl .= ';csv';
     $haproxy = get($geturl);
+} elsif ($url) {
+    my $haproxyio;
+    my $getcmd = "curl --insecure -s --fail "
+               . "--user '$user:$pass' '".$url.";csv'";
+    open $haproxyio, "-|", $getcmd;
+    while (<$haproxyio>) {
+        $haproxy .= $_;
+    }
+    close($haproxyio);
 } else {
     # Connect to haproxy socket and get stats
     my $haproxyio = new IO::Socket::UNIX (
