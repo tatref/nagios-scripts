@@ -1,19 +1,21 @@
-#!/usr/bin/env perl 
+#!/usr/bin/env perl
 # vim: se et ts=4:
 
 #
 # Copyright (C) 2012, Giacomo Montagner <giacomo@entirelyunlike.net>
-# 
-# This program is free software; you can redistribute it and/or modify it 
-# under the same terms as Perl 5.10.1. 
+#               2015, Yann Fertat, Romain Dessort, Jeff Palmer,
+#                     Christophe Drevet-Droguet <dr4ke@dr4ke.net>
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the same terms as Perl 5.10.1.
 # For more details, see http://dev.perl.org/licenses/artistic.html
-# 
+#
 # This program is distributed in the hope that it will be
 # useful, but without any warranty; without even the implied
 # warranty of merchantability or fitness for a particular purpose.
 #
 
-our $VERSION = "1.0.5";
+our $VERSION = "1.1.1";
 
 open(STDERR, ">&STDOUT");
 
@@ -24,13 +26,19 @@ open(STDERR, ">&STDOUT");
 #   1.0.3   - redirect stderr to stdout
 #   1.0.4   - fix undef vars
 #   1.0.5   - fix thresholds
+#   1.1.0   - support for HTTP interface
+#   1.1.1   - drop perl 5.10 requirement
 
 use strict;
 use warnings;
-use 5.010.001;
 use File::Basename qw/basename/;
 use IO::Socket::UNIX;
 use Getopt::Long;
+my $lwp = eval {
+    require LWP::Simple;
+    LWP::Simple->import;
+    1;
+};
 
 sub usage {
     my $me = basename $0;
@@ -70,21 +78,31 @@ DESCRIPTION
     -s, --sock, --socket
         Use named UNIX socket instead of default (/var/run/haproxy.sock)
 
+    -U, --url
+        Use HTTP URL instead of socket. The LWP::Simple perl module is used if
+        available. Otherwise, it falls back to using the external command `curl`.
+
+    -u, --user, --username
+        Username for the HTTP URL
+
+    -x, --pass, --password
+        Password for the HTTP URL
+
     -w, --warning
         Set warning threshold for sessions number to the specified percentage (see -c)
 
 CHECKS AND OUTPUT
-    $me checks every proxy (or the named ones, if -p was given) 
-    for status. It returns an error if any of the checked FRONTENDs is not OPEN, 
+    $me checks every proxy (or the named ones, if -p was given)
+    for status. It returns an error if any of the checked FRONTENDs is not OPEN,
     any of the checked BACKENDs is not UP, or any of the checkes servers is not UP;
-    $me reports any problem it found. 
+    $me reports any problem it found.
 
 EXAMPLES
     $me -s /var/spool/haproxy/sock
         Use /var/spool/haproxy/sock to communicate with haproxy.
 
     $me -p proxy1,proxy2 -w 60 -c 80
-        Check only proxies named "proxy1" and "proxy2", and set sessions number 
+        Check only proxies named "proxy1" and "proxy2", and set sessions number
         thresholds to 60% and 80%.
 
 AUTHOR
@@ -94,12 +112,12 @@ REPORTING BUGS
     Please report any bug to bugs\@entirelyunlike.net
 
 COPYRIGHT
-    Copyright (C) 2012 Giacomo Montagner <giacomo\@entirelyunlike.net>. 
+    Copyright (C) 2012 Giacomo Montagner <giacomo\@entirelyunlike.net>.
     $me is distributed under GPL and the Artistic License 2.0
 
 SEE ALSO
     Check out online haproxy documentation at <http://haproxy.1wt.eu/>
-    
+
 EOU
 }
 
@@ -126,6 +144,9 @@ my @status_names = (qw/OK WARNING CRITICAL UNKNOWN/);
 my $swarn = 80.0;
 my $scrit = 90.0;
 my $sock  = "/var/run/haproxy.sock";
+my $url;
+my $user = '';
+my $pass = '';
 my $dump;
 my $ignore_maint;
 my $proxy;
@@ -135,14 +156,17 @@ my $help;
 # Read command line
 Getopt::Long::Configure ("bundling");
 GetOptions (
-    "c|critical=i"    => \$scrit,
-    "d|dump"          => \$dump,
-    "h|help"          => \$help,
-    "m|ignore-maint"  => \$ignore_maint,
-    "p|proxy=s"       => \$proxy,
-    "P|no-proxy=s"    => \$no_proxy,
-    "s|sock|socket=s" => \$sock, 
-    "w|warning=i"     => \$swarn,
+    "c|critical=i"      => \$scrit,
+    "d|dump"            => \$dump,
+    "h|help"            => \$help,
+    "m|ignore-maint"    => \$ignore_maint,
+    "p|proxy=s"         => \$proxy,
+    "P|no-proxy=s"      => \$no_proxy,
+    "s|sock|socket=s"   => \$sock,
+    "U|url=s"           => \$url,
+    "u|user|username=s" => \$user,
+    "x|pass|password=s" => \$pass,
+    "w|warning=i"       => \$swarn,
 );
 
 # Want help?
@@ -151,28 +175,53 @@ if ($help) {
     exit 3;
 }
 
-# Connect to haproxy socket and get stats
-my $haproxy = new IO::Socket::UNIX (
-    Peer => $sock,
-    Type => SOCK_STREAM,
-);
-die "Unable to connect to haproxy socket: $@" unless $haproxy;
-print $haproxy "show stat\n" or die "Print to socket failed: $!";
+my $haproxy;
+if ($url and $lwp) {
+    my $geturl = $url;
+    if ($user ne '') {
+        $url =~ /^([^:]*:\/\/)(.*)/;
+        $geturl = $1.$user.':'.$pass.'@'.$2;
+    }
+    $geturl .= ';csv';
+    $haproxy = get($geturl);
+} elsif ($url) {
+    my $haproxyio;
+    my $getcmd = "curl --insecure -s --fail "
+               . "--user '$user:$pass' '".$url.";csv'";
+    open $haproxyio, "-|", $getcmd;
+    while (<$haproxyio>) {
+        $haproxy .= $_;
+    }
+    close($haproxyio);
+} else {
+    # Connect to haproxy socket and get stats
+    my $haproxyio = new IO::Socket::UNIX (
+        Peer => $sock,
+        Type => SOCK_STREAM,
+    );
+    die "Unable to connect to haproxy socket: $sock\n$@" unless $haproxyio;
+    print $haproxyio "show stat\n" or die "Print to socket failed: $!";
+    $haproxy = '';
+    while (<$haproxyio>) {
+        $haproxy .= $_;
+    }
+    close($haproxyio);
+}
 
 # Dump stats and exit if requested
 if ($dump) {
-    while (<$haproxy>) {
-        print;
-    }
+    print($haproxy);
     exit 0;
 }
 
 # Get labels from first output line and map them to their position in the line
-my $labels = <$haproxy>;
+my @hastats = ( split /\n/, $haproxy );
+my $labels = $hastats[0];
+die "Unable to retrieve haproxy stats" unless $labels;
 chomp($labels);
-$labels =~ s/^# // or die "Data format not supported."; 
+$labels =~ s/^# // or die "Data format not supported.";
 my @labels = split /,/, $labels;
-{ 
+{
     no strict "refs";
     my $idx = 0;
     map { $$_ = $idx++ } @labels;
@@ -194,23 +243,26 @@ my $perfdata = "";
 
 # Remove excluded proxies from the list if both -p and -P options are
 # specified.
-@proxies = grep{ not $_ ~~ @no_proxies } @proxies;
+my %hash;
+@hash{@no_proxies} = undef;
+@proxies = grep{ not exists $hash{$_} } @proxies;
 
-while (<$haproxy>) {
+foreach (@hastats) {
     chomp;
+    next if /^#/;
     next if /^[[:space:]]*$/;
     my @data = split /,/, $_;
     if (@proxies) { next unless grep {$data[$pxname] eq $_} @proxies; };
     if (@no_proxies) { next if grep {$data[$pxname] eq $_} @no_proxies; };
 
-    # Is session limit enforced? 
+    # Is session limit enforced?
     if ($data[$slim]) {
         $perfdata .= sprintf "%s-%s=%u;%u;%u;0;%u;", $data[$pxname], $data[$svname], $data[$scur], $swarn * $data[$slim] / 100, $scrit * $data[$slim] / 100, $data[$slim];
 
         # Check current session # against limit
         my $sratio = $data[$scur]/$data[$slim];
         if ($sratio >= $scrit / 100 || $sratio >= $swarn / 100) {
-            $exitcode = $sratio >= $scrit / 100 ? 2 : 
+            $exitcode = $sratio >= $scrit / 100 ? 2 :
                 $exitcode < 2 ? 1 : $exitcode;
             $msg .= sprintf "%s:%s sessions: %.2f%%; ", $data[$pxname], $data[$svname], $sratio * 100;
         }
@@ -247,6 +299,6 @@ while (<$haproxy>) {
 unless ($msg) {
     $msg = @proxies ? sprintf("checked proxies: %s", join ', ', sort @proxies) : "checked $checked proxies.";
 }
-say "Check haproxy $status_names[$exitcode] - $msg|$perfdata";
+print "Check haproxy $status_names[$exitcode] - $msg|$perfdata\n";
 exit $exitcode;
 
