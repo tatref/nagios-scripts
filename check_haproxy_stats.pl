@@ -28,6 +28,7 @@ open(STDERR, ">&STDOUT");
 #   1.0.5   - fix thresholds
 #   1.1.0   - support for HTTP interface
 #   1.1.1   - drop perl 5.10 requirement
+#   1.1.2   - fix perfdata (noudAndi)
 
 use strict;
 use warnings;
