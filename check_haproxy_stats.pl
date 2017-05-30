@@ -256,11 +256,11 @@ foreach (@hastats) {
     if (@proxies) { next unless grep {$data[$pxname] eq $_} @proxies; };
     if (@no_proxies) { next if grep {$data[$pxname] eq $_} @no_proxies; };
 
-    # Is session limit enforced?
-    if ($data[$slim]) {
+    # Is session limit enforced? (ignore backend fullconn limit)
+    if ($data[$slim] and $data[$svname] ne 'BACKEND') {
         $perfdata .= sprintf "%s-%s=%u;%u;%u;0;%u ", $data[$pxname], $data[$svname], $data[$scur], $swarn * $data[$slim] / 100, $scrit * $data[$slim] / 100, $data[$slim];
 
-        # Check current session # against limit
+        # Check current sessions against limit
         my $sratio = $data[$scur]/$data[$slim];
         if ($sratio >= $scrit / 100 || $sratio >= $swarn / 100) {
             $exitcode = $sratio >= $scrit / 100 ? 2 :
