@@ -55,13 +55,13 @@ DESCRIPTION
 
     OPTIONS
     -c, --critical
-        Set critical threshold for sessions number (chacks current number of sessions
+        Set critical threshold for sessions number (checks current number of sessions
         against session limit, if enforced) to the specified percentage.
         If no session limit (slim) was specified for the given proxy, this option has
-        no effect.
+        no effect. Default: 90
 
     -d, --dump
-        Just dump haproxy stats and exit;
+        Just dump haproxy stats and exit.
 
     -h, --help
         Print this message.
@@ -77,20 +77,21 @@ DESCRIPTION
         Do not check named proxies. Use comma to separate proxies in list.
 
     -s, --sock, --socket
-        Use named UNIX socket instead of default (/var/run/haproxy.sock)
+        Use named UNIX socket instead of default (/var/run/haproxy.sock).
 
     -U, --url
         Use HTTP URL instead of socket. The LWP::Simple perl module is used if
         available. Otherwise, it falls back to using the external command `curl`.
 
     -u, --user, --username
-        Username for the HTTP URL
+        Username for the HTTP URL.
 
     -x, --pass, --password
-        Password for the HTTP URL
+        Password for the HTTP URL.
 
     -w, --warning
-        Set warning threshold for sessions number to the specified percentage (see -c)
+        Set warning threshold for sessions number to the specified percentage (see -c).
+        Default: 80
 
 CHECKS AND OUTPUT
     $me checks every proxy (or the named ones, if -p was given)
