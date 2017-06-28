@@ -69,6 +69,9 @@ DESCRIPTION
     -m, --ignore-maint
         Assume servers in MAINT state to be ok.
 
+    --no-stats-exit-code
+        Which exit code to use if stats cannot be obtained. Default: 3
+
     -p, --proxy
         Check only named proxies, not every one. Use comma to separate proxies
         in list.
@@ -153,28 +156,36 @@ my $dump;
 my $ignore_maint;
 my $proxy;
 my $no_proxy;
+my $no_stats_exit_code = 3;
 my $help;
 
 # Read command line
 Getopt::Long::Configure ("bundling");
 GetOptions (
-    "c|critical=i"      => \$scrit,
-    "d|dump"            => \$dump,
-    "h|help"            => \$help,
-    "m|ignore-maint"    => \$ignore_maint,
-    "p|proxy=s"         => \$proxy,
-    "P|no-proxy=s"      => \$no_proxy,
-    "s|sock|socket=s"   => \$sock,
-    "U|url=s"           => \$url,
-    "u|user|username=s" => \$user,
-    "x|pass|password=s" => \$pass,
-    "w|warning=i"       => \$swarn,
+    "c|critical=i"          => \$scrit,
+    "d|dump"                => \$dump,
+    "h|help"                => \$help,
+    "m|ignore-maint"        => \$ignore_maint,
+    "no-stats-exit-code=i"  => \$no_stats_exit_code,
+    "p|proxy=s"             => \$proxy,
+    "P|no-proxy=s"          => \$no_proxy,
+    "s|sock|socket=s"       => \$sock,
+    "U|url=s"               => \$url,
+    "u|user|username=s"     => \$user,
+    "x|pass|password=s"     => \$pass,
+    "w|warning=i"           => \$swarn,
 );
 
 # Want help?
 if ($help) {
     usage;
-    exit 3;
+    exit 0;
+}
+
+# print passed arguments and exit with code 2
+sub error_exit {
+    print @_;
+    exit $no_stats_exit_code;
 }
 
 my $haproxy;
@@ -201,8 +212,10 @@ if ($url and $lwp) {
         Peer => $sock,
         Type => SOCK_STREAM,
     );
-    die "Unable to connect to haproxy socket: $sock\n$@" unless $haproxyio;
-    print $haproxyio "show stat\n" or die "Print to socket failed: $!";
+    eval { die "Unable to connect to haproxy socket: $sock\n$!$@" unless $haproxyio; };
+    if(my $ev_err = $@) { error_exit($ev_err); }
+    print $haproxyio "show stat\n" or eval { die "Print to socket failed: $!"; };
+    if(my $ev_err = $@) { error_exit($ev_err); }
     $haproxy = '';
     while (<$haproxyio>) {
         $haproxy .= $_;
@@ -219,9 +232,11 @@ if ($dump) {
 # Get labels from first output line and map them to their position in the line
 my @hastats = ( split /\n/, $haproxy );
 my $labels = $hastats[0];
-die "Unable to retrieve haproxy stats" unless $labels;
+eval { die "Unable to retrieve haproxy stats" unless $labels; };
+if(my $ev_err = $@) { error_exit($ev_err); }
 chomp($labels);
-$labels =~ s/^# // or die "Data format not supported.";
+$labels =~ s/^# // or eval { die "Data format not supported."; };
+if(my $ev_err = $@) { error_exit($ev_err); }
 my @labels = split /,/, $labels;
 {
     no strict "refs";
